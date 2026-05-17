@@ -20,9 +20,8 @@
       background: #1e1e1e;
       padding: 30px;
       border-radius: 16px;
-      width: 400px;
+      width: 420px;
       text-align: center;
-      box-shadow: 0 0 20px rgba(0,0,0,0.4);
     }
 
     input, button {
@@ -38,32 +37,18 @@
       background: #4f46e5;
       color: white;
       cursor: pointer;
-      font-size: 16px;
     }
 
-    a {
-      color: #7c83ff;
-      word-break: break-all;
-    }
-
-    #viewer {
-      margin-top: 20px;
-    }
-
-    img, video {
-      max-width: 100%;
-      border-radius: 12px;
-      margin-top: 10px;
-    }
+    a { color: #7c83ff; word-break: break-all; }
+    img, video, audio { max-width: 100%; margin-top: 10px; border-radius: 12px; }
   </style>
 </head>
 <body>
   <div class="box">
-    <h2>Обмен файлами</h2>
-
     <div id="uploadUI">
-      <input type="file" id="fileInput" />
-      <button onclick="uploadFile()">Создать ссылку</button>
+      <h2>Обмен файлами</h2>
+      <input type="file" id="fileInput">
+      <button onclick="uploadFile()">Загрузить</button>
       <div id="result"></div>
     </div>
 
@@ -71,22 +56,26 @@
   </div>
 
   <script>
-    async function uploadFile() {
-      const input = document.getElementById('fileInput');
-      const file = input.files[0];
+    function generateId() {
+      return Math.random().toString(36).substring(2, 10);
+    }
 
-      if (!file) {
-        alert('Выбери файл');
-        return;
-      }
+    function uploadFile() {
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) return alert('Выбери файл');
 
       const reader = new FileReader();
 
       reader.onload = () => {
-        const data = encodeURIComponent(reader.result);
-        const name = encodeURIComponent(file.name);
+        const id = generateId();
 
-        const link = `${location.origin}${location.pathname}?file=${name}#${data}`;
+        localStorage.setItem('file_' + id, JSON.stringify({
+          name: file.name,
+          type: file.type,
+          data: reader.result
+        }));
+
+        const link = `${location.origin}${location.pathname}?id=${id}`;
 
         document.getElementById('result').innerHTML = `
           <p>Ссылка:</p>
@@ -98,43 +87,41 @@
     }
 
     function openFile() {
-      const hash = location.hash.slice(1);
-      const params = new URLSearchParams(location.search);
-      const name = decodeURIComponent(params.get('file') || 'file');
+      const id = new URLSearchParams(location.search).get('id');
+      if (!id) return;
 
-      if (!hash) return;
+      const raw = localStorage.getItem('file_' + id);
+      if (!raw) {
+        document.getElementById('uploadUI').style.display = 'none';
+        document.getElementById('viewer').innerHTML = '<h3>Файл не найден</h3><p>Возможно он удалён или открыт на другом устройстве.</p>';
+        return;
+      }
 
       document.getElementById('uploadUI').style.display = 'none';
 
-      const data = decodeURIComponent(hash);
+      const file = JSON.parse(raw);
       const viewer = document.getElementById('viewer');
 
-      if (data.startsWith('data:image')) {
-        viewer.innerHTML = `
-          <h3>${name}</h3>
-          <img src="${data}">
-          <br><br>
-          <a href="${data}" download="${name}">
-            <button>Скачать</button>
-          </a>
-        `;
-      } else if (data.startsWith('data:video')) {
-        viewer.innerHTML = `
-          <h3>${name}</h3>
-          <video controls src="${data}"></video>
-          <br><br>
-          <a href="${data}" download="${name}">
-            <button>Скачать</button>
-          </a>
-        `;
-      } else {
-        viewer.innerHTML = `
-          <h3>${name}</h3>
-          <a href="${data}" download="${name}">
-            <button>Открыть / Скачать файл</button>
-          </a>
-        `;
+      let preview = `
+        <h3>${file.name}</h3>
+      `;
+
+      if (file.type.startsWith('image/')) {
+        preview += `<img src="${file.data}">`;
+      } else if (file.type.startsWith('video/')) {
+        preview += `<video controls src="${file.data}"></video>`;
+      } else if (file.type.startsWith('audio/')) {
+        preview += `<audio controls src="${file.data}"></audio>`;
       }
+
+      preview += `
+        <br><br>
+        <a href="${file.data}" download="${file.name}">
+          <button>Скачать</button>
+        </a>
+      `;
+
+      viewer.innerHTML = preview;
     }
 
     openFile();
